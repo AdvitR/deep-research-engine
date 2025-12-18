@@ -52,6 +52,16 @@ def _current_step_failures(state: ResearchState) -> List[dict]:
             if f.get("step_id") == step_id]
 
 
+def _latest_failure_reason_for_step(state: ResearchState, step_id: str) -> str:
+    failures = [
+        f for f in state.get("failed_steps", [])
+        if f.get("step_id") == step_id
+    ]
+    if not failures:
+        return "Unknown failure"
+    return failures[-1].get("reason", "Unknown failure")
+
+
 def _retry_budget_exhausted(state, max_retries_per_step: int) -> bool:
     step = _get_current_step(state)
     if not step:
@@ -302,7 +312,18 @@ def supervisor(state: ResearchState) -> dict:
     updates: Dict[str, object] = {"supervisor_decision": action}
 
     if action == A_REPLAN:
+        step = _get_current_step(state)
+        failure_reason = (
+            _latest_failure_reason_for_step(state, step["id"])
+            if step else "Unknown failure"
+        )
+
         updates["replan_count"] = int(state.get("replan_count", 0)) + 1
+        updates["replan_request"] = {
+            "failed_step_id": step["id"] if step else None,
+            "failure_reason": failure_reason,
+            "current_step_idx": int(state.get("current_step_idx", 0) or 0),
+        }
 
     elif action == A_SKIP:
         updates["current_step_idx"] = int(state.get("current_step_idx", 0)) + 1

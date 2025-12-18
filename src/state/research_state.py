@@ -32,6 +32,7 @@ class ResearchState(TypedDict):
     research_brief: Optional[str]
     plan: List[PlanStep]
     current_step_idx: int
+    replan_request: Optional[dict]
 
     # execution memory
     evidence_store = List[Evidence]
