@@ -194,8 +194,17 @@ def planner(state: ResearchState) -> dict:
         """.strip()
 
         # TODO: Fix LLM invocation
-        raw = llm.invoke(prompt).content.strip()
-        new_steps = _validate_plan(json.loads(raw))
+        raw_output = llm.invoke(prompt).content.strip()
+
+        try:
+            parsed = json.loads(raw_output)
+            new_steps = _validate_plan(parsed)
+        except Exception as e:
+            raise RuntimeError(
+                f"Planner failed to produce valid output.\n"
+                f"Raw output:\n{raw_output}\n\n"
+                f"Error: {e}"
+            )
 
         new_plan = completed_steps + new_steps
 
