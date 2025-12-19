@@ -35,8 +35,8 @@ class ResearchState(TypedDict):
     replan_request: Optional[dict]
 
     # execution memory
-    evidence_store = List[Evidence]
-    failed_steps = List[FailureRecord]
+    evidence_store: List[List[Evidence]]
+    failed_steps: List[FailureRecord]
 
     # control
     supervisor_decision: Optional[str]
