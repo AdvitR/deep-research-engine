@@ -49,7 +49,7 @@ def test_executor_agent():
     # Print results
     print("=== Executor Test Output ===")
     evidence_list = updated_fields.get("evidence_store", [])
-    with open("executor_result.txt", "w", encoding="utf-8") as f:
+    with open("src/data/executor_result.txt", "w", encoding="utf-8") as f:
         print(updated_fields, file=f)
     for i, evidence_group in enumerate(evidence_list):
         print(f"\nStep {i} Evidence:")
