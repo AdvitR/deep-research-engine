@@ -199,8 +199,17 @@ def planner(state: ResearchState) -> dict:
 
         new_plan = completed_steps + new_steps
 
+        # clear failures for replaced steps
+        preserved_step_ids = {step["id"] for step in completed_steps}
+
+        filtered_failure_steps = [
+            f for f in state.get("failed_steps", [])
+            if f.get("step_id") in preserved_step_ids
+        ]
+
         return {
             "plan": new_plan,
             "current_step_idx": k,
             "replan_request": None,  # IMPORTANT: clears it
+            "failed_steps": filtered_failure_steps,
         }
