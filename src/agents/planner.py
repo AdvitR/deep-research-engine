@@ -1,7 +1,8 @@
 import json
 from typing import List
-from utils.llm import get_llm
 from state.research_state import ResearchState, PlanStep
+from langchain_core.messages import HumanMessage
+from utils.llm import model
 
 ALLOWED_METHODS = {"search", "analysis"}
 ALLOWED_RISKS = {"low", "medium", "high"}
@@ -24,9 +25,7 @@ def _validate_plan(plan: List[dict]) -> List[PlanStep]:
         # checking for all required keys
         required_keys = {"id", "goal", "method", "risk"}
         if set(step.keys()) != required_keys:
-            raise ValueError(
-                f"Step {i} keys must be {required_keys}, got {step.keys()}"
-            )
+            raise ValueError(f"Step {i} keys must be {required_keys}, got {step.keys()}")
 
         # asserting types and values for all required keys
         if not isinstance(step["id"], str):
@@ -50,8 +49,6 @@ def _validate_plan(plan: List[dict]) -> List[PlanStep]:
 
 
 def planner(state: ResearchState) -> dict:
-    llm = get_llm()
-
     replan_request = state.get("replan_request")
 
     query = state.get("clarified_query") or state["user_query"]
@@ -106,8 +103,7 @@ def planner(state: ResearchState) -> dict:
         Begin.
         """.strip()
 
-        # TODO: fix llm invocation function
-        raw_output = llm.invoke(prompt).content.strip()
+        raw_output = model.invoke([HumanMessage(content=prompt)]).content
 
         try:
             parsed = json.loads(raw_output)
@@ -119,10 +115,7 @@ def planner(state: ResearchState) -> dict:
                 f"Error: {e}"
             )
 
-        return {
-            "plan": validated_plan,
-            "current_step_idx": 0
-        }
+        return {"plan": validated_plan, "current_step_idx": 0}
 
     # SCOPED REPLANNING
     else:
@@ -194,7 +187,7 @@ def planner(state: ResearchState) -> dict:
         """.strip()
 
         # TODO: Fix LLM invocation
-        raw_output = llm.invoke(prompt).content.strip()
+        raw_output = model.invoke([HumanMessage(content=prompt)]).content
 
         try:
             parsed = json.loads(raw_output)
@@ -212,8 +205,7 @@ def planner(state: ResearchState) -> dict:
         preserved_step_ids = {step["id"] for step in completed_steps}
 
         filtered_failure_steps = [
-            f for f in state.get("failed_steps", [])
-            if f.get("step_id") in preserved_step_ids
+            f for f in state.get("failed_steps", []) if f.get("step_id") in preserved_step_ids
         ]
 
         return {

@@ -1,10 +1,10 @@
 from utils.llm import get_llm
 from state.research_state import ResearchState
+from langchain_core.messages import HumanMessage
+from utils.llm import model
 
 
 def clarifier(state: ResearchState) -> dict:
-    llm = get_llm()
-
     prompt = f"""
     You are assisting with a research task. The user's original query is:
 
@@ -22,10 +22,8 @@ def clarifier(state: ResearchState) -> dict:
     Your question (or "NO_CLARIFICATION_NEEDED"):
     """
 
-    question = llm.invoke(prompt).content
+    question = model.invoke([HumanMessage(content=prompt)]).content
     # TODO: assuming user responds externally for now
-    clarified = state['user_query'] + " (clarified)"
+    clarified = state["user_query"] + " (clarified)"
 
-    return {
-        "clarified_query": clarified
-    }
+    return {"clarified_query": clarified}
