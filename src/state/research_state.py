@@ -12,6 +12,7 @@ class PlanStep(TypedDict):
 
 
 class Evidence(TypedDict):
+    step_id: setattr
     source: str
     content: str
     confidence: float
@@ -49,3 +50,5 @@ class ResearchState(TypedDict):
     # loop control
     replan_count: int
     max_replans: int
+
+    final_report: Optional[str]
