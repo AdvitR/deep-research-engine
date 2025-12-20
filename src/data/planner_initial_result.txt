@@ -1,0 +1,53 @@
+{
+    "plan": [
+        {
+            "id": "s1",
+            "goal": "Find publicly documented hiking trails in Washington State with total trail length between 4.0 and 6.0 miles (one-way or round-trip explicitly noted), and return for each: trail name, reported length, trailhead coordinates or address, elevation gain, and source URL.",
+            "method": "search",
+            "risk": "low",
+            "produces_entities": ["candidate_trails"],
+            "requires_entities": [],
+        },
+        {
+            "id": "s2",
+            "goal": "For each candidate_trail, determine driving time by car from a central Seattle point (e.g., Seattle City Hall or downtown Seattle) to the trailhead using a mapping service or travel-time estimates appropriate for winter conditions, and produce a list of trails with estimated winter driving time.",
+            "method": "analysis",
+            "risk": "medium",
+            "produces_entities": ["filtered_by_driving_time"],
+            "requires_entities": ["candidate_trails"],
+        },
+        {
+            "id": "s3",
+            "goal": "For trails in filtered_by_driving_time that are within 90 minutes, verify winter vehicle and trailhead access by checking WSDOT road status, USFS/State Park/County road closure pages, and trailhead parking pages to confirm whether the trailhead is reachable by car in winter; mark each trail as 'winter-accessible' or not with source URLs.",
+            "method": "search",
+            "risk": "medium",
+            "produces_entities": ["winter_accessible_trails"],
+            "requires_entities": ["filtered_by_driving_time"],
+        },
+        {
+            "id": "s4",
+            "goal": "For each winter_accessible_trail, collect objective winter-safety indicators: Washington Avalanche Center advisory references for the area, presence of avalanche-prone terrain on the route, trail steepness/elevation profile (sections >30 degrees), official trail difficulty/class, and records of winter incidents from authoritative sources; produce a safety-assessment record per trail.",
+            "method": "search",
+            "risk": "medium",
+            "produces_entities": ["safety_checked_trails"],
+            "requires_entities": ["winter_accessible_trails"],
+        },
+        {
+            "id": "s5",
+            "goal": "Verify that each safety_checked_trail is located in a mountain setting (e.g., within named mountain range or on a mountain/peak) by checking topo maps, USGS/USFS descriptions, or official park descriptions and record the mountain/range name and trail elevation extremes.",
+            "method": "search",
+            "risk": "low",
+            "produces_entities": ["mountain_trails"],
+            "requires_entities": ["safety_checked_trails"],
+        },
+        {
+            "id": "s6",
+            "goal": "From mountain_trails, produce a final list of trails that meet all constraints (within 90 minutes from Seattle, car-accessible in winter, 4–6 miles long, located in mountains, and without objective winter-safety disqualifiers), including for each the name, trailhead coordinates, length, elevation gain, estimated winter driving time, safety notes, and source links.",
+            "method": "analysis",
+            "risk": "low",
+            "produces_entities": ["final_trail_list"],
+            "requires_entities": ["mountain_trails"],
+        },
+    ],
+    "current_step_idx": 0,
+}

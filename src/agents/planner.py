@@ -23,7 +23,7 @@ def _validate_plan(plan: List[dict]) -> List[PlanStep]:
             raise ValueError(f"Step {i} is not a dict")
 
         # checking for all required keys
-        required_keys = {"id", "goal", "method", "risk"}
+        required_keys = {"id", "goal", "method", "risk", "produces_entities", "requires_entities"}
         if set(step.keys()) != required_keys:
             raise ValueError(f"Step {i} keys must be {required_keys}, got {step.keys()}")
 
@@ -39,6 +39,11 @@ def _validate_plan(plan: List[dict]) -> List[PlanStep]:
 
         if step["risk"] not in ALLOWED_RISKS:
             raise ValueError(f"Invalid risk in step {i}")
+
+        if not isinstance(step["produces_entities"], list) or not all(
+            isinstance(e, str) for e in step["produces_entities"]
+        ):
+            raise ValueError(f"Step {i} produces_entities must be a list of strings")
 
         validated.append(step)
 
@@ -92,6 +97,8 @@ def planner(state: ResearchState) -> dict:
         - "goal": precise description of what the step aims to find or compute
         - "method": one of ["search", "analysis"]
         - "risk": one of ["low", "medium", "high"]
+        - "produces_entities": list of strings representing entities produced by this step. This list can be empty.
+        - "requires_entities": list of strings representing entities required by this step. The name should match those produced by prior steps. This list can be empty.
 
         IMPORTANT CONSTRAINTS:
         - Do NOT answer the research question.

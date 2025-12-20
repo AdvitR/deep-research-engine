@@ -1,9 +1,12 @@
 from __future__ import annotations
-from typing import Dict, List, Optional, Tuple
-from collections import Counter
+import json
+from textwrap import indent
+from typing import Any, Dict, List, Optional, Tuple
+from collections import Counter, defaultdict
 
-from utils.llm import get_llm
-from state.research_state import ResearchState, PlanStep
+from utils.llm import get_llm, model
+from langchain_core.messages import HumanMessage
+from state.research_state import Evidence, ResearchState, PlanStep
 
 # supervisor action space
 A_EXECUTE = "EXECUTE"
@@ -39,8 +42,7 @@ def _get_current_step(state: ResearchState) -> Optional[PlanStep]:
 
 def _failure_counts_by_step(state: ResearchState) -> Counter:
     failed_steps = state.get("failed_steps") or []
-    return Counter([f.get("step_id") for f in failed_steps
-                    if isinstance(f, dict)])
+    return Counter([f.get("step_id") for f in failed_steps if isinstance(f, dict)])
 
 
 def _current_step_failures(state: ResearchState) -> List[dict]:
@@ -48,15 +50,11 @@ def _current_step_failures(state: ResearchState) -> List[dict]:
     if not step:
         return []
     step_id = step["id"]
-    return [f for f in (state.get("failed_steps") or [])
-            if f.get("step_id") == step_id]
+    return [f for f in (state.get("failed_steps") or []) if f.get("step_id") == step_id]
 
 
 def _latest_failure_reason_for_step(state: ResearchState, step_id: str) -> str:
-    failures = [
-        f for f in state.get("failed_steps", [])
-        if f.get("step_id") == step_id
-    ]
+    failures = [f for f in state.get("failed_steps", []) if f.get("step_id") == step_id]
     if not failures:
         return "Unknown failure"
     return failures[-1].get("reason", "Unknown failure")
@@ -71,8 +69,7 @@ def _retry_budget_exhausted(state, max_retries_per_step: int) -> bool:
 
 
 def _replan_budget_exhausted(state: ResearchState) -> bool:
-    return (int(state.get("replan_count", 0) or 0)
-            >= int(state.get("max_replans", 0) or 0))
+    return int(state.get("replan_count", 0) or 0) >= int(state.get("max_replans", 0) or 0)
 
 
 def _summarize_failures_for_prompt(state, max_items: int = 3) -> str:
@@ -101,10 +98,7 @@ def _summarize_plan_for_prompt(state, max_steps: int = 6) -> str:
     chunk = plan[start:end]
     out = []
     for i, s in enumerate(chunk, start=start):
-        out.append(
-            f"{i}. {s['id']} | {s['method']} | "
-            f"risk={s['risk']} | goal={s['goal']}"
-        )
+        out.append(f"{i}. {s['id']} | {s['method']} | " f"risk={s['risk']} | goal={s['goal']}")
     if end < len(plan):
         out.append(f"... ({len(plan) - end} more steps)")
     return "\n".join(out)
@@ -178,23 +172,14 @@ def _llm_decide_action(state: ResearchState, max_retries_per_step: int) -> str:
     if _plan_finished(state):
         constraints.append("Plan is finished => must return TERMINATE.")
     if _replan_budget_exhausted(state):
-        constraints.append(
-            "Replan budget exhausted => must NOT return REPLAN."
-        )
+        constraints.append("Replan budget exhausted => must NOT return REPLAN.")
     if _retry_budget_exhausted(state, max_retries_per_step):
-        constraints.append(
-            "Retry budget exhausted for current step => must NOT return RETRY."
-        )
+        constraints.append("Retry budget exhausted for current step => must NOT return RETRY.")
 
-    constraints_block = (
-        "\n".join(f"- {c}" for c in constraints)
-        if constraints
-        else "- None"
-    )
+    constraints_block = "\n".join(f"- {c}" for c in constraints) if constraints else "- None"
 
     current_step_line = (
-        f"{step['id']} | method={step['method']} | "
-        f"risk={step['risk']} | goal={step['goal']}"
+        f"{step['id']} | method={step['method']} | " f"risk={step['risk']} | goal={step['goal']}"
         if step
         else "None"
     )
@@ -253,6 +238,41 @@ def _llm_decide_action(state: ResearchState, max_retries_per_step: int) -> str:
     return _normalize_action(raw)
 
 
+def expand_goal_with_entities(
+    goal: str,
+    required_entities: List[str],
+    entities: Dict[str, List[str]],
+) -> str:
+    """
+    Expand a plan step goal using accumulated entities.
+    """
+
+    if not required_entities:
+        return goal
+
+    missing = [et for et in required_entities if et not in entities or not entities[et]]
+    if missing:
+        raise ValueError(f"Cannot expand goal; missing required entities: {missing}")
+
+    context_blocks = []
+
+    for entity_type in required_entities:
+        items = entities[entity_type]
+
+        block = f"Context for entity type {entity_type}:\n"
+        for i, item in enumerate(items, start=1):
+            block += f"{i}. {item}\n"
+
+        context_blocks.append(block)
+
+    expanded_goal = (
+        f"{goal.strip()}\n\n"
+        f"Use the following context when executing this step:\n\n" + "\n\n".join(context_blocks)
+    )
+
+    return expanded_goal
+
+
 def supervisor(state: ResearchState) -> dict:
     """
     Returns a dict update containing at minimum:
@@ -276,15 +296,12 @@ def supervisor(state: ResearchState) -> dict:
     if not isinstance(plan, list) or len(plan) == 0:
         return {
             "supervisor_decision": A_TERMINATE,
-            "termination_reason": "No plan available to execute"
+            "termination_reason": "No plan available to execute",
         }
 
     if _plan_finished(state):
         # if plan is finished, terminate gracefully.
-        return {
-            "supervisor_decision": A_TERMINATE,
-            "termination_reason": "Plan completed"
-        }
+        return {"supervisor_decision": A_TERMINATE, "termination_reason": "Plan completed"}
 
     # LLM-based decision (with validation + fallback)
     try:
@@ -302,10 +319,7 @@ def supervisor(state: ResearchState) -> dict:
         # choose best alternative
         action, _ = _fallback_policy(state, max_retries_per_step)
 
-    if (
-        action == A_RETRY
-        and _retry_budget_exhausted(state, max_retries_per_step)
-    ):
+    if action == A_RETRY and _retry_budget_exhausted(state, max_retries_per_step):
         action, _ = _fallback_policy(state, max_retries_per_step)
 
     # apply state updates based on the chosen action
@@ -314,8 +328,7 @@ def supervisor(state: ResearchState) -> dict:
     if action == A_REPLAN:
         step = _get_current_step(state)
         failure_reason = (
-            _latest_failure_reason_for_step(state, step["id"])
-            if step else "Unknown failure"
+            _latest_failure_reason_for_step(state, step["id"]) if step else "Unknown failure"
         )
 
         updates["replan_count"] = int(state.get("replan_count", 0)) + 1
@@ -331,8 +344,16 @@ def supervisor(state: ResearchState) -> dict:
     elif action == A_TERMINATE:
         # if we reached here, termination is due to policy choice / fallback.
         updates["termination_reason"] = (
-            state.get("termination_reason")
-            or "Supervisor terminated execution"
+            state.get("termination_reason") or "Supervisor terminated execution"
         )
+    # action is EXECUTE
+
+    expanded_goal = expand_goal_with_entities(
+        goal=_get_current_step(state)["goal"],
+        required_entities=_get_current_step(state).get("requires_entities") or [],
+        entities=state.get("entities") or {},
+    )
+    updates["plan"] = list(state["plan"])  # shallow copy
+    updates["plan"][state["current_step_idx"]]["expanded_goal"] = expanded_goal
 
     return updates

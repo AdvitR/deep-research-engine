@@ -1,16 +1,17 @@
+import json
 import os
 from typing import Dict, List, Optional, Tuple
-from collections import Counter
+from collections import Counter, defaultdict
 
 from dotenv import load_dotenv
 from tavily import TavilyClient
 from utils.llm import model
-from state.research_state import ResearchState, PlanStep
+from state.research_state import Evidence, ResearchState, PlanStep
 from langchain_core.messages import HumanMessage
 from utils.tavily_wrapper import tavily_search, tavily_extract
 
 
-def decompose_plan_step(step: str, prev_err: str | None) -> List[str]:
+def decompose_plan_step(step: str, entity_context: dict, prev_err: str | None) -> List[str]:
     """Decomposes a plan step into a list of subtasks."""
     prompt = f"""
 You are a domain-aware research assistant. Your task is to decompose the following high-level research step into a minimal set of **atomic**, **web-searchable** subtasks.
@@ -21,7 +22,8 @@ You are a domain-aware research assistant. Your task is to decompose the followi
 - Avoid subtasks that are too vague (e.g., "learn about X") or too narrow (e.g., "read section 4.1 of the 2017 IMF report").
 - Do **not** generate subtasks that involve clarification, introspection, or LLM-only reasoning (e.g., “determine if X is unclear” or “summarize findings”).
 - Use neutral phrasing, and focus on **fact-finding**, **comparisons**, **definitions**, **statistics**, or **causal relationships**.
-- Include only as many subtasks as are **necessary** to cover the plan step comprehensively (typically 3-6).
+- Include only as many subtasks as are **necessary** to cover the plan step comprehensively.
+- There may be a list of entities extracted from prior steps that can help provide context for this step. Use them if relevant. You can make one subtask for each entity if required.
 
 ### Plan Step:
 "{step}"
@@ -33,6 +35,7 @@ You are a domain-aware research assistant. Your task is to decompose the followi
 Return only the subtasks as a numbered list.
 Each item should be a single-line query.
 """
+    print("DECOMPOSE PROMPT\n", prompt)
     response = model.invoke([HumanMessage(content=prompt)]).content
     return [line.strip().split(". ", 1)[-1] for line in response.splitlines() if line.strip()]
 
@@ -134,6 +137,90 @@ Score the result on a scale from **0 to 10** based on the following dimensions:
         return 5  # fallback neutral
 
 
+def _extract_entities_from_text(
+    expected_entities: List[str], evidence_text: str
+) -> Dict[str, List[str]]:
+    """
+    Extract entities of specified types from raw evidence text.
+
+    Returns a dict keyed by entity type, each mapping to a list of strings.
+    """
+
+    if not expected_entities or not evidence_text.strip():
+        return {entity: [] for entity in expected_entities}
+
+    prompt = f"""
+You are an information extraction system.
+
+Your task is to extract structured entities from the text below.
+
+ENTITY TYPES TO EXTRACT:
+{expected_entities}
+
+RULES:
+- Only extract entities of the specified types.
+- If an entity is not present, return an empty list for that type.
+- Each entity must be a string.
+- Do NOT hallucinate.
+- Do NOT include explanations.
+
+OUTPUT FORMAT (STRICT JSON):
+{{
+  "<entity_type>": [{{ ... }}, {{ ... }}],
+  ...
+}}
+
+TEXT:
+{evidence_text}
+"""
+
+    response = model.invoke([HumanMessage(content=prompt)]).content
+
+    try:
+        parsed = json.loads(response)
+    except Exception:
+        parsed = {entity: [] for entity in expected_entities}
+
+    # Normalize output
+    result: Dict[str, List[str]] = {}
+    for entity in expected_entities:
+        values = parsed.get(entity, [])
+        if isinstance(values, list):
+            result[entity] = [str(v) for v in values]
+        else:
+            result[entity] = []
+    return result
+
+
+def _extract_entities(step: PlanStep, evidence: List[Evidence]) -> List[str]:
+    """
+    Extract entities from the plan step goal for better context.
+    This is a placeholder function and should be replaced with a proper NER model.
+    """
+    expected_entities = step.get("produces_entities", [])
+    aggregated: Dict[str, List[str]] = defaultdict(list)
+
+    if not expected_entities:
+        return {}
+
+    for ev in evidence:
+        extracted = _extract_entities_from_text(expected_entities, ev)
+
+        for entity_type, values in extracted.items():
+            aggregated[entity_type] += values
+
+    for entity_type, values in aggregated.items():
+        seen = set()
+        deduped = []
+        for v in values:
+            if v not in seen:
+                seen.add(v)
+                deduped.append(v)
+        aggregated[entity_type] = deduped
+
+    return aggregated
+
+
 def execute_subtask(subtask: str) -> str:
     shortened_subtask = shorten_plan_subtask(subtask, limit=400)
     print("SHORTENED", shortened_subtask)
@@ -172,20 +259,36 @@ def executor(state: ResearchState) -> dict:
     """
 
     step_idx = state["current_step_idx"]
-    step_goal = state["plan"][step_idx]["goal"]
+    step_goal = state["plan"][step_idx]["expanded_goal"]
     prev_err = (
         state["failed_steps"][step_idx]["reason"] if step_idx in state["failed_steps"] else None
     )
-    subtask_list = decompose_plan_step(step_goal, prev_err)
+    entity_context = state.get("entities", {})
+    required_entities = state["plan"][step_idx].get("requires_entities", [])
+    entity_context = {k: v for k, v in entity_context.items() if k in required_entities}
+    print("ENTITY CONTEXT", entity_context)
+    subtask_list = decompose_plan_step(step_goal, entity_context, prev_err)
     print("SUBTASKS", subtask_list)
     subtask_results = []
     for subtask in subtask_list:
         result = execute_subtask(subtask)
         subtask_results.append(result)
 
-    while len(state["evidence_store"]) <= step_idx:
-        state["evidence_store"].append([])
+    new_entities = _extract_entities(state["plan"][step_idx], subtask_results)
 
-    state["evidence_store"][step_idx] = subtask_results
+    merged_entities = state.get("entities", {})
+    for entity_type, values in new_entities.items():
+        merged_entities.setdefault(entity_type, [])
+        merged_entities[entity_type].extend(
+            v for v in values if v not in merged_entities[entity_type]
+        )
 
-    return {"evidence_store": state["evidence_store"]}
+    evidence_store = list(state.get("evidence_store", []))
+    while len(evidence_store) <= step_idx:
+        evidence_store.append([])
+    evidence_store[step_idx] = state["evidence_store"][step_idx]
+
+    return {
+        "evidence_store": evidence_store,
+        "entities": merged_entities,
+    }

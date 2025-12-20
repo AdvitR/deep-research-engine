@@ -1,11 +1,14 @@
-from typing import TypedDict, List, Optional, Literal
+from typing import Any, Set, TypedDict, List, Optional, Literal
 
 
 class PlanStep(TypedDict):
     id: str
     goal: str
+    expanded_goal: Optional[str]
     method: Literal["search", "analysis"]
     risk: Literal["low", "medium", "high"]
+    produces_entities: List[str]
+    requires_entities: List[str]
 
 
 class Evidence(TypedDict):
@@ -35,6 +38,7 @@ class ResearchState(TypedDict):
     replan_request: Optional[dict]
 
     # execution memory
+    entities: dict[str, List[str]]
     evidence_store: List[List[Evidence]]
     failed_steps: List[FailureRecord]
 
