@@ -249,10 +249,6 @@ def expand_goal_with_entities(
     if not required_entities:
         return goal
 
-    missing = [et for et in required_entities if et not in entities or not entities[et]]
-    if missing:
-        raise ValueError(f"Cannot expand goal; missing required entities: {missing}")
-
     context_blocks = []
 
     for entity_type in required_entities:
