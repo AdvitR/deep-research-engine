@@ -5,7 +5,7 @@ from src.graph.main_graph import build_graph
 graph = build_graph()
 
 initial_state = {
-    "user_query": "Find a major claim from 2020–2022 that is still repeated today but has been partially weakened or reframed by later evidence. Show how the language changed over time and why the earlier framing persists.",
+    "user_query": "Investigate the 2023–2024 U.S. Department of Justice antitrust actions against major technology companies. Identify one specific enforcement action where at least three reputable outlets disagree on the primary motivation or legal theory. Cite the exact statutory language used by DOJ, contrast it with each outlet’s framing, and explain which interpretation is best supported by the complaint text.",
     "clarified_query": None,
     "clarity_score": 0.0,
     "clarification_needed": True,  # or False to skip clarifier
