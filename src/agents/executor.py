@@ -310,6 +310,7 @@ async def execute_subtask_async(subtask: str) -> str:
 
 async def executor(state: ResearchState) -> dict:
     print("=== Executor Agent ===")
+    print("Current Step Index:", state["current_step_idx"])
     step_idx = state["current_step_idx"]
     step_goal = state["plan"][step_idx]["expanded_goal"]
     prev_err = (
@@ -374,4 +375,5 @@ async def executor(state: ResearchState) -> dict:
     return {
         "evidence_store": evidence_store,
         "entities": merged_entities,
+        "current_step_idx": step_idx + 1,
     }
