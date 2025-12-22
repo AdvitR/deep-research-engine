@@ -5,7 +5,7 @@ from src.graph.main_graph import build_graph
 graph = build_graph()
 
 initial_state = {
-    "user_query": "Gather a list of good winter hiking trails in Washington State. Must be within 90 mins from seattle, accessible by car in the winter, between 4-6 miles long, not too dangerous, in the mountains",
+    "user_query": "Find a major claim from 2020–2022 that is still repeated today but has been partially weakened or reframed by later evidence. Show how the language changed over time and why the earlier framing persists.",
     "clarified_query": None,
     "clarity_score": 0.0,
     "clarification_needed": True,  # or False to skip clarifier
