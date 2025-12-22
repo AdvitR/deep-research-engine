@@ -40,8 +40,9 @@ class ResearchState(TypedDict):
 
     # execution memory
     entities: dict[str, List[str]]
-    evidence_store: List[List[Evidence]]
+    evidence_store: List[List[str]]
     failed_steps: List[FailureRecord]
+    estimate: bool  # Whether to give an estimate of evidence in case it's not findable, just for testing purposes
 
     # control
     supervisor_decision: Optional[str]

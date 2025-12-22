@@ -1,48 +1,5 @@
-from typing import List, Dict
-from agents.supervisor import supervisor
-from state.research_state import PlanStep, ResearchState
-
-
-def test_supervisor_agent():
-    """Tests the supervisor agent end-to-end on a simple example plan step."""
-
-    # Define a basic plan with one research goal
-    plan: List[PlanStep] = [
-        {
-            "id": "s1",
-            "goal": "Find all mountain hiking trails in Washington State whose official/trailhead-reported route length is between 4 and 6 miles (one-way or round-trip must be specified) and collect trail name, trailhead coordinates or address, official reported length, elevation gain, and managing agency/source",
-            "method": "search",
-            "risk": "medium",
-            "produces_entities": ["candidate_trails_with_length_elevation_and_location"],
-            "requires_entities": [],
-        },
-        {
-            "id": "s2",
-            "goal": "For each trail in candidate_trails_with_length_elevation_and_location, obtain driving directions or published drive-time estimates from downtown Seattle (or a defined Seattle central point) to the trailhead and record typical drive time (minutes) and distance",
-            "method": "search",
-            "risk": "low",
-            "produces_entities": ["drive_time_estimates_from_Seattle_to_trailheads"],
-            "requires_entities": ["candidate_trails_with_length_elevation_and_location"],
-        },
-        {
-            "id": "s3",
-            "goal": "For each trail in candidate_trails_with_length_elevation_and_location, find official winter accessibility information for the trailhead access road (e.g., WSDOT, USFS, county, park pages): seasonal closures, chain/4WD requirements, plowing status, and any winter vehicle advisories",
-            "method": "search",
-            "risk": "medium",
-            "produces_entities": ["winter_vehicle_access_and_seasonal_closure_by_trail"],
-            "requires_entities": ["candidate_trails_with_length_elevation_and_location"],
-        },
-        {
-            "id": "s4",
-            "goal": "For each trail in candidate_trails_with_length_elevation_and_location, collect official or authoritative safety/hazard information relevant to winter hiking: regional avalanche advisory coverage (NWAC region), trail technical difficulty, common winter hazards reported in trip reports or agency advisories, and any documented winter rescues/closures",
-            "method": "search",
-            "risk": "medium",
-            "produces_entities": ["winter_safety_hazard_notes_by_trail"],
-            "requires_entities": ["candidate_trails_with_length_elevation_and_location"],
-        },
-    ]
-
-    evidence_store = [
+{
+    "evidence_store": [
         [
             "Johnson Mountain\n- Region: Snoqualmie Region > Salmon La Sac/Teanaway\n- Length: 5.4 miles, roundtrip\n- Elevation Gain: 1,600 feet\n- Highest Point: 5,220 feet\n- Rating: Average rating: 3.00 (1 vote)\n- Features: Dogs allowed on leash; Mountain views; Ridges/passes; Summits; Wildflowers/Meadows\n- Access note (12.19.25): Trailhead inaccessible due to road closures of 9737 (N. Fork Teanaway), 9701 (Jungle Creek Rd.) and 9737 (along Stafford Creek).\n- Description: Escape the crowds and access early season views in the Teanaway. Starting on an old forest road and ending on a climbers’ trail, this mostly exposed hike passes through wildflowers and a burn area to reach the Johnson Mountain summit with views of the Enchantments, Rainier, the Teanaway River Valley, and wind farms of eastern Washington.\n\nJungle Creek\n- Region: Snoqualmie Region > Salmon La Sac/Teanaway\n- Length: 4.0 miles, one-way\n- Elevation Gain: 1,500 feet\n- Highest Point: 4,500 feet\n- Rating: Average rating: 2.60 (5 votes)\n- Features: Dogs allowed on leash; Mountain views; Ridges/passes; Wildflowers/Meadows\n- Access note (12.19.25): Trailhead inaccessible due to road closures of 9737 (N. Fork Teanaway), 9701 (Jungle Creek Rd.) and 9737 (along Stafford Creek).\n- Description: Jungle Creek Trail is a 4-mile long trail from FS 9701/Jungle Creek Road to Johnson Meadow Trail #1383. The saddle at 2.1 miles from the trailhead is the highest point of the trail at 4,500 feet in elevation. In spring there are a lot of flowers along the trail. When the weather is good, there are good views of peaks in Stuart Range at the saddle.\n\nRye Creek to Camp Lake Snowshoe\n- Region: Snoqualmie Region > Cle Elum Area\n- Length: 5.6 miles, roundtrip\n- Elevation Gain: 250 feet\n- Highest Point: 2,750 feet\n- Rating: Average rating: 0.00 (0 votes)\n- Features: Dogs allowed on leash; Lakes; Rivers\n- Access note (12.19.25): Trail inaccessible due to road closures of 9737 (N. Fork Teanaway), 9701 (Jungle Creek Rd.) and 9737 (along Stafford Creek).\n- Description: This snowshoe route follows snow-covered forest roads to Camp Lake in the Teanaway Community Forest.\n\nSpruce Railroad Trail\n- Region: Olympic Peninsula > Northern Coast\n- Length: 5.0 miles, one-way\n- Elevation Gain: 250 feet\n- Highest Point: 700 feet\n- Rating: Average rating: 3.87 (39 votes)\n- Features: Dogs allowed on leash; Good for kids; Lakes; Mountain views\n- Access note (12.16.25): Trail closed due to major landslide.\n- Description: A scenic and historic hike along the shores of Lake Crescent; a microclimate of warmer and drier conditions than areas just a few miles away.\n\nMud Mountain Dam - Rim Trail\n- Region: Mount Rainier Area > Chinook Pass - Hwy 410\n- Length: 4.0 miles, roundtrip\n- Elevation Gain: 80 feet\n- Highest Point: 1,300 feet\n- Rating: Average rating: 2.80 (10 votes)\n- Features: Dogs allowed on leash; Fall foliage; Good for kids; Mountain views; Rivers; Wildflowers/Meadows; Wildlife\n- Access note (12.17.25): Trailhead inaccessible due to washout on State Route 410 past Enumclaw. (Access through the washout restricted to Greenwater locals and official responders.)\n- Description: Located on the White River near Mount Rainier, this gentle 2-mile trail will take you along the White River.\n\nSkookum Flats\n- Region: Mount Rainier Area > Chinook Pass - Hwy 410\n- Length: 4.6 miles, roundtrip\n- Elevation Gain: 525 feet\n- Highest Point: 2,515 feet\n- Rating: Average rating: 3.59 (29 votes)\n- Features: Dogs allowed on leash; Good for kids; Mountain views; Old growth; Rivers; Waterfalls; Wildflowers/Meadows; Wildlife\n- Access note (12.17.25): Trailhead inaccessible due to washout on State Route 410 past Enumclaw. (Access through the washout restricted to Greenwater locals and official responders.)\n- Description: A gentle walk through shaded forest, often within sight and/or sound of the White River. Skookum Falls can be your destination for a 4.6-mile round trip, or use the south trailhead to choose segments of the 8.5-mile trail (one-way) to hike, bike or run.",
             "No Washington trails of length 4.0–6.0 miles were found in the provided page excerpt.\n\nRelevant factual notes from the excerpt:\n- 4th Of July Ridge #307 — 7.3 miles (Colville National Forest, Washington) — length outside 4–6 miles.\n- Three Gun Spring/Tres Pistolas Trail (Three Gun Trail #194) — 4.0 miles (Cibola National Forest, New Mexico) — length within 4–6 miles but not in Washington.",
@@ -82,9 +39,8 @@ def test_supervisor_agent():
             "ESTIMATED EVIDENCE: The Grassy Knoll trailhead in Gifford Pinchot National Forest is reached via forest and county roads that are commonly seasonally closed or become impassable in winter; if roads remain open, travel frequently requires chains or 4WD and motorists must comply with posted traction requirements. USFS typically does not plow forest roads, so winter access is limited; WSDOT is responsible for plowing and posting conditions on state highways, while Skamania or Klickitat County handle their county roads but often provide only limited plowing. Winter vehicle advisories, closures, and traction requirements are issued by the local USFS district, WSDOT, and the relevant county and are enforced where posted.",
             "ESTIMATED EVIDENCE: The Bedal Basin trailhead in the Mt. Baker–Snoqualmie NF is reached via forest and connector roads that are commonly subject to seasonal winter closures and often are not plowed; during winter access typically requires a snow-capable vehicle (4WD or AWD) and chains/traction devices when conditions warrant. The U.S. Forest Service issues and enforces winter road closures, gate schedules, and trailhead parking restrictions; WSDOT controls and plows the state highways to the trailhead junction and issues chain-law and traction advisories during storms; Snohomish County Public Works plows county-maintained roads but generally does not plow remote forest roads. Travelers should expect limited plowing, possible gated or closed access, and must follow USFS, WSDOT, and county winter advisories and chain/4WD requirements.",
         ],
-    ]
-
-    entities = {
+    ],
+    "entities": {
         "candidate_trails_with_length_elevation_and_location": [
             "Johnson Mountain — Length: 5.4 miles (roundtrip); Elevation Gain: 1,600 feet; Region: Snoqualmie Region > Salmon La Sac/Teanaway",
             "Jungle Creek — Length: 4.0 miles (one-way); Elevation Gain: 1,500 feet; Region: Snoqualmie Region > Salmon La Sac/Teanaway",
@@ -117,57 +73,5 @@ def test_supervisor_agent():
             "Stevens County roads — Stevens County typically plows county-maintained roads but not most forest development roads; the USFS issues specific winter road closures and vehicle advisories.",
             "Grassy Knoll trailhead — reached via forest and county roads that are commonly seasonally closed or become impassable in winter; if roads remain open, travel frequently requires chains or 4WD and motorists must comply with posted traction requirements; USFS typically does not plow forest roads so winter access is limited; WSDOT plows and posts conditions on state highways; Skamania or Klickitat County handle county roads but often provide only limited plowing; winter vehicle advisories, closures, and traction requirements are issued by the local USFS district, WSDOT, and the relevant county and are enforced where posted.",
         ],
-    }
-
-    # Construct a minimal initial state
-    initial_state: ResearchState = {
-        "user_query": "Gather a list of good winter hiking trails in Washington State. Must be within 90 mins from seattle, accessible by car in the winter, between 4-6 miles long, not too dangerous, in the mountains",
-        "clarified_query": "Gather a list of good winter hiking trails in Washington State. Must be within 90 mins from seattle, accessible by car in the winter, between 4-6 miles long, not too dangerous, in the mountains",
-        "clarity_score": 0.9,
-        "clarification_needed": False,
-        "research_brief": None,
-        "plan": plan,
-        "current_step_idx": 3,
-        "replan_request": None,
-        "entities": entities,
-        "evidence_store": evidence_store,
-        "failed_steps": [],
-        "supervisor_decision": None,
-        "termination_reason": None,
-        "replan_count": 0,
-        "max_replans": 2,
-    }
-
-    # Run the executor
-    print("Running supervisor...")
-    updated_fields = supervisor(initial_state)
-
-    # Print results
-    print("=== Supervisor Test Output ===")
-    evidence_list = updated_fields.get("evidence_store", [])
-    with open(
-        f"src/data/supervisor_step_{initial_state.get('current_step_idx', 0)}_result.txt",
-        "w",
-        encoding="utf-8",
-    ) as f:
-        print(updated_fields, file=f)
-    for i, evidence_group in enumerate(evidence_list):
-        print(f"\nStep {i} Evidence:")
-        for j, evidence in enumerate(evidence_group):
-            print(f"  [{j}]")
-            if isinstance(evidence, dict):
-                for k, v in evidence.items():
-                    print(f"    {k}: {v}")
-            else:
-                print(f"    {evidence}")
-
-    # Optional: basic assertions
-    print("\nTest passed")
-
-
-def main():
-    test_supervisor_agent()
-
-
-if __name__ == "__main__":
-    main()
+    },
+}

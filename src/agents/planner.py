@@ -54,6 +54,7 @@ def _validate_plan(plan: List[dict]) -> List[PlanStep]:
 
 
 def planner(state: ResearchState) -> dict:
+    print("=== Planner Agent ===")
     replan_request = state.get("replan_request")
 
     query = state.get("clarified_query") or state["user_query"]
@@ -83,6 +84,7 @@ def planner(state: ResearchState) -> dict:
         2. The step must correspond to ONE clear information need.
         3. The step must be feasible via search or simple analysis.
         4. If data availability is uncertain, mark the step as higher risk.
+        5. Each step should just be a search for information. Don't include any analysis steps in the initial plan.
 
         Risk Levels:
         - "low": Data is very likely to exist in public sources.
@@ -97,7 +99,7 @@ def planner(state: ResearchState) -> dict:
         - "goal": precise description of what the step aims to find or compute
         - "method": one of ["search", "analysis"]
         - "risk": one of ["low", "medium", "high"]
-        - "produces_entities": list of strings representing entities produced by this step. This list can be empty.
+        - "produces_entities": list of strings representing entities produced by this step. Each entity name should fully describe the data produced (e.g., "average_annual_rainfall_by_country"). This list can be empty.
         - "requires_entities": list of strings representing entities required by this step. The name should match those produced by prior steps. This list can be empty.
 
         IMPORTANT CONSTRAINTS:
@@ -122,6 +124,8 @@ def planner(state: ResearchState) -> dict:
                 f"Error: {e}"
             )
 
+        print("=== Planner Result ===")
+        print({"plan": validated_plan, "current_step_idx": 0})
         return {"plan": validated_plan, "current_step_idx": 0}
 
     # SCOPED REPLANNING
@@ -178,10 +182,12 @@ def planner(state: ResearchState) -> dict:
         Return ONLY a JSON list (no markdown, no explanation).
 
         Each list element must have EXACTLY these fields:
-        - "id": short string identifier (e.g., "s3", "s4")
+        - "id": short string identifier (e.g., "s1", "s2")
         - "goal": precise description of what the step aims to find or compute
         - "method": one of ["search", "analysis"]
         - "risk": one of ["low", "medium", "high"]
+        - "produces_entities": list of strings representing entities produced by this step. This list can be empty.
+        - "requires_entities": list of strings representing entities required by this step. The name should match those produced by prior steps. This list can be empty.
 
         IMPORTANT CONSTRAINTS:
         - Do NOT include the completed steps above.
@@ -215,6 +221,8 @@ def planner(state: ResearchState) -> dict:
             f for f in state.get("failed_steps", []) if f.get("step_id") in preserved_step_ids
         ]
 
+        print("=== Planner Result ===")
+        print({"plan": new_plan, "current_step_idx": k})
         return {
             "plan": new_plan,
             "current_step_idx": k,

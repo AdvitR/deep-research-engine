@@ -1,6 +1,5 @@
 from __future__ import annotations
 import json
-from textwrap import indent
 from typing import Any, Dict, List, Optional, Tuple
 from collections import Counter, defaultdict
 
@@ -274,6 +273,7 @@ def expand_goal_with_entities(
 
 
 def supervisor(state: ResearchState) -> dict:
+    print("=== Supervisor Agent ===")
     """
     Returns a dict update containing at minimum:
       - supervisor_decision: one of ALLOWED_ACTIONS
@@ -356,4 +356,6 @@ def supervisor(state: ResearchState) -> dict:
     updates["plan"] = list(state["plan"])  # shallow copy
     updates["plan"][state["current_step_idx"]]["expanded_goal"] = expanded_goal
 
+    print("=== Supervisor Result ===")
+    print(updates)
     return updates

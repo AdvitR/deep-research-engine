@@ -5,6 +5,7 @@ from utils.llm import model
 
 
 def clarifier(state: ResearchState) -> dict:
+    print("=== Clarifier Agent ===")
     prompt = f"""
     You are assisting with a research task. The user's original query is:
 
@@ -26,4 +27,6 @@ def clarifier(state: ResearchState) -> dict:
     # TODO: assuming user responds externally for now
     clarified = state["user_query"] + " (clarified)"
 
+    print("=== Clarifier Result ===")
+    print({"clarified_query": clarified})
     return {"clarified_query": clarified}

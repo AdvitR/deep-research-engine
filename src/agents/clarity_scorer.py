@@ -4,6 +4,7 @@ from utils.llm import model
 
 
 def clarity_scorer(state: ResearchState):
+    print("=== Clarity Scorer Agent ===")
     prompt = f"""
 You are evaluating the clarity of a user-submitted research query.
 
@@ -42,4 +43,6 @@ Clarity is defined as how **specific, interpretable, and actionable** the query 
     response = model.invoke([HumanMessage(content=prompt)]).content
     score = float(response.strip())
 
+    print("=== Clarity Scorer Result ===")
+    print({"clarity_score": score, "clarification_needed": score < 0.6})
     return {"clarity_score": score, "clarification_needed": score < 0.6}

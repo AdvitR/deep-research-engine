@@ -1,0 +1,39 @@
+{
+    "supervisor_decision": "EXECUTE",
+    "plan": [
+        {
+            "id": "s1",
+            "goal": "Find all mountain hiking trails in Washington State whose official/trailhead-reported route length is between 4 and 6 miles (one-way or round-trip must be specified) and collect trail name, trailhead coordinates or address, official reported length, elevation gain, and managing agency/source",
+            "method": "search",
+            "risk": "medium",
+            "produces_entities": ["candidate_trails_with_length_elevation_and_location"],
+            "requires_entities": [],
+            "expanded_goal": "Find all mountain hiking trails in Washington State whose official/trailhead-reported route length is between 4 and 6 miles (one-way or round-trip must be specified) and collect trail name, trailhead coordinates or address, official reported length, elevation gain, and managing agency/source",
+        },
+        {
+            "id": "s2",
+            "goal": "For each trail in candidate_trails_with_length_elevation_and_location, obtain driving directions or published drive-time estimates from downtown Seattle (or a defined Seattle central point) to the trailhead and record typical drive time (minutes) and distance",
+            "method": "search",
+            "risk": "low",
+            "produces_entities": ["drive_time_estimates_from_Seattle_to_trailheads"],
+            "requires_entities": ["candidate_trails_with_length_elevation_and_location"],
+            "expanded_goal": "For each trail in candidate_trails_with_length_elevation_and_location, obtain driving directions or published drive-time estimates from downtown Seattle (or a defined Seattle central point) to the trailhead and record typical drive time (minutes) and distance\n\nUse the following context when executing this step:\n\nContext for entity type candidate_trails_with_length_elevation_and_location:\n1. Johnson Mountain — Length: 5.4 miles (roundtrip); Elevation Gain: 1,600 feet; Region: Snoqualmie Region > Salmon La Sac/Teanaway\n2. Jungle Creek — Length: 4.0 miles (one-way); Elevation Gain: 1,500 feet; Region: Snoqualmie Region > Salmon La Sac/Teanaway\n3. Rye Creek to Camp Lake Snowshoe — Length: 5.6 miles (roundtrip); Elevation Gain: 250 feet; Region: Snoqualmie Region > Cle Elum Area\n4. Spruce Railroad Trail — Length: 5.0 miles (one-way); Elevation Gain: 250 feet; Region: Olympic Peninsula > Northern Coast\n5. Mud Mountain Dam - Rim Trail — Length: 4.0 miles (roundtrip); Elevation Gain: 80 feet; Region: Mount Rainier Area > Chinook Pass - Hwy 410\n6. Skookum Flats — Length: 4.6 miles (roundtrip); Elevation Gain: 525 feet; Region: Mount Rainier Area > Chinook Pass - Hwy 410\n7. 4th Of July Ridge #307 — 7.3 miles — Colville National Forest, Washington — elevation: not provided in excerpt\n8. Three Gun Spring/Tres Pistolas Trail (Three Gun Trail #194) — 4.0 miles — Cibola National Forest, New Mexico — elevation: not provided in excerpt\n9. Gifford Pinchot National Forest - Grassy Knoll: 4.4 miles, 1,048 feet elevation gain\n10. Mt. Baker-Snoqualmie National Forest - Bedal Basin: 5.2 miles, 1,900 feet elevation gain\n",
+        },
+        {
+            "id": "s3",
+            "goal": "For each trail in candidate_trails_with_length_elevation_and_location, find official winter accessibility information for the trailhead access road (e.g., WSDOT, USFS, county, park pages): seasonal closures, chain/4WD requirements, plowing status, and any winter vehicle advisories",
+            "method": "search",
+            "risk": "medium",
+            "produces_entities": ["winter_vehicle_access_and_seasonal_closure_by_trail"],
+            "requires_entities": ["candidate_trails_with_length_elevation_and_location"],
+        },
+        {
+            "id": "s4",
+            "goal": "For each trail in candidate_trails_with_length_elevation_and_location, collect official or authoritative safety/hazard information relevant to winter hiking: regional avalanche advisory coverage (NWAC region), trail technical difficulty, common winter hazards reported in trip reports or agency advisories, and any documented winter rescues/closures",
+            "method": "search",
+            "risk": "medium",
+            "produces_entities": ["winter_safety_hazard_notes_by_trail"],
+            "requires_entities": ["candidate_trails_with_length_elevation_and_location"],
+        },
+    ],
+}

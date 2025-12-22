@@ -1,5 +1,7 @@
 import json
 import os
+import asyncio
+from textwrap import indent
 from typing import Dict, List, Optional, Tuple
 from collections import Counter, defaultdict
 
@@ -19,6 +21,7 @@ You are a domain-aware research assistant. Your task is to decompose the followi
 ### Guidelines:
 - Each subtask should be **a concise query** that could be entered into a search engine to gather factual, relevant information.
 - Do **not** reference specific documents, websites, or named authors unless they are widely known entities (e.g., Wikipedia, WHO, NASA).
+- Do **not** use Google's advanced search operators (e.g., quotes, AND, OR).
 - Avoid subtasks that are too vague (e.g., "learn about X") or too narrow (e.g., "read section 4.1 of the 2017 IMF report").
 - Do **not** generate subtasks that involve clarification, introspection, or LLM-only reasoning (e.g., “determine if X is unclear” or “summarize findings”).
 - Use neutral phrasing, and focus on **fact-finding**, **comparisons**, **definitions**, **statistics**, or **causal relationships**.
@@ -35,7 +38,7 @@ You are a domain-aware research assistant. Your task is to decompose the followi
 Return only the subtasks as a numbered list.
 Each item should be a single-line query.
 """
-    print("DECOMPOSE PROMPT\n", prompt)
+    # print("DECOMPOSE PROMPT\n", prompt)
     response = model.invoke([HumanMessage(content=prompt)]).content
     return [line.strip().split(". ", 1)[-1] for line in response.splitlines() if line.strip()]
 
@@ -192,7 +195,7 @@ TEXT:
     return result
 
 
-def _extract_entities(step: PlanStep, evidence: List[Evidence]) -> List[str]:
+def _extract_entities(step: PlanStep, evidence: List[str]) -> Dict[str, List[str]]:
     """
     Extract entities from the plan step goal for better context.
     This is a placeholder function and should be replaced with a proper NER model.
@@ -221,26 +224,83 @@ def _extract_entities(step: PlanStep, evidence: List[Evidence]) -> List[str]:
     return aggregated
 
 
-def execute_subtask(subtask: str) -> str:
-    shortened_subtask = shorten_plan_subtask(subtask, limit=400)
-    print("SHORTENED", shortened_subtask)
-    search_response = tavily_search(shortened_subtask)
-    urls = [result["url"] for result in search_response["results"]]
-    best_url_indexes = choose_best_n_urls(subtask, urls, n=3)
-    best_urls = [urls[i] for i in best_url_indexes]
-    print("BEST URLs", best_urls)
+def trim_entities(entities: Dict[str, List[str]], limit: int) -> Dict[str, List[str]]:
+    """Trims the number of entities per type to a specified limit."""
+    trimmed = {}
+    for entity_type, values in entities.items():
+        trimmed[entity_type] = values[:limit]
+    return trimmed
 
-    page_content = tavily_extract(best_urls)
-    best_extracted_info = None
+
+def evaluate_evidence_quality(evidence: List[str], subtask: str) -> float:
+    """Evaluates the quality of evidence collected for a given subtask."""
+    prompt = f"""
+You are an expert evaluator of research evidence quality. Your task is to assess the quality of the following evidence collected for the research subtask:
+Subtask:
+"{subtask}"
+### Evidence:
+{indent(json.dumps(evidence, indent=2), '    ')}
+### Instructions:
+- Evaluate the evidence based on relevance, credibility, and completeness.
+- Return **only a float between 0.0 and 1.0** representing the quality score.
+- **0.0** = very poor quality, **1.0** = excellent quality.
+- No explanation, no formatting, no justification — only the number
+- Return 0 if there is no relevant evidence.
+"""
+    response = model.invoke([HumanMessage(content=prompt)]).content
+    score = float(response.strip())
+    return score
+
+
+def estimate_evidence(subtask: str) -> str:
+    """Generates estimated evidence for a subtask when real evidence is not findable."""
+    prompt = f"""
+You are a knowledgeable research assistant. Your task is to provide a plausible and concise summary of information that would address the following research subtask:
+Subtask:
+"{subtask}"
+### Instructions:
+- Provide a brief summary of factual information that would help answer the subtask.
+- Base your summary on general knowledge, avoiding speculation or unsupported claims.
+- Keep the summary focused and relevant to the subtask.
+- Give an aswer to the subtask, not instructions on how to find the answer.
+### Output:
+Return a very concise paragraph summarizing the key information. Don't include any extra information or context if it's not explicitly asked for.
+"""
+    return model.invoke([HumanMessage(content=prompt)]).content.strip()
+
+
+async def execute_subtask_async(subtask: str) -> str:
+    # Wrap sync functions in asyncio.to_thread
+    shortened_subtask = await asyncio.to_thread(shorten_plan_subtask, subtask, 400)
+    # print("SHORTENED", shortened_subtask)
+
+    search_response = await asyncio.to_thread(tavily_search, shortened_subtask)
+    urls = [result["url"] for result in search_response["results"]]
+    # print("ALL URLS", urls)
+
+    num_best = 2
+    best_url_indexes = await asyncio.to_thread(choose_best_n_urls, subtask, urls, num_best)
+    best_urls = (
+        [urls[i] for i in best_url_indexes]
+        if len(best_url_indexes) == num_best
+        else urls[:num_best]
+    )
+    # print("BEST URLs", best_urls)
+
+    if not best_urls:
+        return "No search results"
+
+    page_content = await asyncio.to_thread(tavily_extract, best_urls)
+    best_extracted_info = "No relevant content found"
     max_score = -1
+
     for result in page_content["results"]:
-        # Process the extracted content
-        content = result["raw_content"]
-        url = result["url"]
-        print("CONTENT", content[:100])
-        extracted_info = extract_info_from_page(subtask, content)
-        print("EXTRACTED FROM", url, ":", extracted_info)
-        score = evaluate_subtask_result(subtask, extracted_info)
+        content = result["raw_content"][:300_000]
+        # print("CONTENT", content[:100])
+        extracted_info = await asyncio.to_thread(extract_info_from_page, subtask, content)
+        # print("EXTRACTED FROM", result["url"], ":", extracted_info)
+        score = await asyncio.to_thread(evaluate_subtask_result, subtask, extracted_info)
+
         if score > max_score or best_extracted_info is None:
             max_score = score
             best_extracted_info = extracted_info
@@ -248,33 +308,49 @@ def execute_subtask(subtask: str) -> str:
     return best_extracted_info
 
 
-def executor(state: ResearchState) -> dict:
-    """
-    Returns a list of results for each subtask in a single plan step.
-
-    :param state: Description
-    :type state: ResearchState
-    :return: Description
-    :rtype: dict
-    """
-
+async def executor(state: ResearchState) -> dict:
+    print("=== Executor Agent ===")
     step_idx = state["current_step_idx"]
     step_goal = state["plan"][step_idx]["expanded_goal"]
     prev_err = (
         state["failed_steps"][step_idx]["reason"] if step_idx in state["failed_steps"] else None
     )
+
     entity_context = state.get("entities", {})
     required_entities = state["plan"][step_idx].get("requires_entities", [])
     entity_context = {k: v for k, v in entity_context.items() if k in required_entities}
-    print("ENTITY CONTEXT", entity_context)
-    subtask_list = decompose_plan_step(step_goal, entity_context, prev_err)
-    print("SUBTASKS", subtask_list)
-    subtask_results = []
-    for subtask in subtask_list:
-        result = execute_subtask(subtask)
-        subtask_results.append(result)
 
+    # print("ENTITY CONTEXT", entity_context)
+    subtask_list = decompose_plan_step(step_goal, entity_context, prev_err)
+    # print("SUBTASKS", subtask_list)
+
+    # Run all subtasks concurrently
+    subtask_results = await asyncio.gather(
+        *[execute_subtask_async(subtask) for subtask in subtask_list]
+    )
+
+    quality_scores = await asyncio.gather(
+        *(
+            asyncio.to_thread(evaluate_subtask_result, subtask, result)
+            for subtask, result in zip(subtask_list, subtask_results)
+        )
+    )
+
+    estimate_tasks = {}
+    if state.get("estimate", False):
+        for i, score in enumerate(quality_scores):
+            if score <= 0.3:
+                estimate_tasks[i] = asyncio.to_thread(estimate_evidence, subtask_list[i])
+
+    if estimate_tasks:
+        estimated_values = await asyncio.gather(*estimate_tasks.values())
+
+        for idx, estimated in zip(estimate_tasks.keys(), estimated_values):
+            subtask_results[idx] = "ESTIMATED EVIDENCE: " + estimated
+
+    # print("SUBTASK RESULTS", subtask_results)
     new_entities = _extract_entities(state["plan"][step_idx], subtask_results)
+    new_entities = trim_entities(new_entities, limit=10)
 
     merged_entities = state.get("entities", {})
     for entity_type, values in new_entities.items():
@@ -286,8 +362,15 @@ def executor(state: ResearchState) -> dict:
     evidence_store = list(state.get("evidence_store", []))
     while len(evidence_store) <= step_idx:
         evidence_store.append([])
-    evidence_store[step_idx] = state["evidence_store"][step_idx]
+    evidence_store[step_idx] = subtask_results
 
+    print("=== Executor Result ===")
+    print(
+        {
+            "evidence_store": evidence_store,
+            "entities": merged_entities,
+        }
+    )
     return {
         "evidence_store": evidence_store,
         "entities": merged_entities,

@@ -1,14 +1,12 @@
 from langgraph.graph import StateGraph, END
 from state.research_state import ResearchState
 
-from agents import (
-    clarity_scorer,
-    clarifier,
-    planner,
-    supervisor,
-    executor,
-    report_generator,
-)
+from agents.clarity_scorer import clarity_scorer
+from agents.clarifier import clarifier
+from agents.planner import planner
+from agents.supervisor import supervisor
+from agents.executor import executor
+from agents.report_generator import report_generator
 
 
 def build_graph():
@@ -38,7 +36,7 @@ def build_graph():
             "EXECUTE": "executor",
             "REPLAN": "planner",
             "TERMINATE": "report_generator",
-        }
+        },
     )
 
     graph.add_edge("executor", "supervisor")

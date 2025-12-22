@@ -1,36 +1,32 @@
 from typing import Dict, List
-from utils.llm import get_llm
+from utils.llm import get_llm, model
+from langchain_core.messages import HumanMessage
 from state.research_state import ResearchState, Evidence, PlanStep
 
+
 def _format_evidence_summary(
-        plan: List[PlanStep],
-        evidence_store: List[Evidence],
-        failed_steps: List[Dict],
+    plan: List[PlanStep],
+    evidence_store: List[List[str]],
+    failed_steps: List[Dict],
 ) -> str:
     """
-    Produces a structured summary of evidence grouped by plan step. 
-    Assumes all evidence items are tagged with step_id.
+    Produces a structured summary of evidence grouped by plan step.
+    Each entry in evidence_store is a list of strings (evidence per step).
     """
     lines = []
     lines.append("EVIDENCE BY PLAN STEP:\n")
 
-    evidence_by_step = {step["id"]: [] for step in plan}
-    for ev in evidence_store:
-        evidence_by_step.setdefault(ev["step_id"], []).append(ev)
+    for idx, step in enumerate(plan):
+        step_id = step.get("id", f"step-{idx}")
+        step_goal = step.get("goal", "[No goal defined]")
+        lines.append(f"- Step {step_id}: {step_goal}")
 
-    for step in plan:
-        step_id = step["id"]
-        lines.append(f"- Step {step_id}: {step['goal']}")
-
-        step_evidence = evidence_by_step.get(step_id, [])
-        if step_evidence:
-            for ev in step_evidence:
-                src = ev.get("source", "unknown source")
-                conf = ev.get("confidence", "NA")
-                content = ev.get("content", "").strip()
-                lines.append(f"    * ({conf}) {content} [{src}]")
+        if idx < len(evidence_store) and evidence_store[idx]:
+            for i, ev in enumerate(evidence_store[idx]):
+                evidence_snippet = ev.strip().replace("\n", " ")
+                lines.append(f"    * {evidence_snippet}")
         else:
-            lines.append("  * No evidence collected for this step.")
+            lines.append("    * No evidence collected for this step.")
 
     if failed_steps:
         lines.append("\nFAILED / INCOMPLETE STEPS")
@@ -41,18 +37,18 @@ def _format_evidence_summary(
 
     return "\n".join(lines)
 
-def report_generator(state: ResearchState) -> dict:
-    llm = get_llm()
 
+def report_generator(state: ResearchState) -> dict:
+    print("=== Report Generator Agent ===")
     query = state.get("clarified_query") or state["user_query"]
     plan = state["plan"]
     evidence_store = state["evidence_store"]
     failed_steps = state["failed_steps"]
     termination_reason = state.get("termination_reason")
 
-    evidence_summary = _format_evidence_summary(
-        plan, evidence_store, failed_steps
-    )
+    evidence_summary = _format_evidence_summary(plan, evidence_store, failed_steps)
+    # print("=== Evidence Summary ===")
+    # print(evidence_summary)
 
     prompt = f"""
     You are a research assistant writing a final report.
@@ -69,6 +65,7 @@ def report_generator(state: ResearchState) -> dict:
     - Clearly state any uncertainties, missing data, or limitations.
     - Avoid speculation or unsupported claims.
     - Prefer cautious, qualified language where evidence is incomplete.
+    - Treat estimated evidence as if it were real.
 
     If evidence is insufficient to fully answer the question, provide
     a best-effort partial answer and explicitly explain what is missing.
@@ -83,8 +80,8 @@ def report_generator(state: ResearchState) -> dict:
     Do NOT mention internal agents, steps, or system details.
     """.strip()
 
-    final_report = llm.involke(prompt).content.strip()
+    final_report = model.invoke([HumanMessage(content=prompt)]).content.strip()
 
-    return {
-        "final_report": final_report
-    }
+    print("=== Report Generator Result ===")
+    print({"final_report": final_report})
+    return {"final_report": final_report}

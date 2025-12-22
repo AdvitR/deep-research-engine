@@ -13,7 +13,7 @@ def test_planner_initial():
         "clarification_needed": False,
         "research_brief": None,
         "plan": None,
-        "current_step_idx": 1,
+        "current_step_idx": 0,
         "replan_request": None,
         "evidence_store": [],
         "failed_steps": [],
